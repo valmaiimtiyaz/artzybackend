@@ -4,9 +4,9 @@ const cors = require("cors");
 const { Pool } = require("pg");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-
 const app = express();
 const PORT = process.env.PORT || 5000;
+
 
 app.use(cors()); 
 app.use(express.json({ limit: "10mb" }));
@@ -14,13 +14,13 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
-    rejectUnauthorized: false, 
+    rejectUnauthorized: false,
   },
 });
 
 pool.connect((err) => {
   if (err) {
-    console.error("Gagal konek ke Database:", err);
+    console.error("Failed to connect to Database:", err);
   } else {
     console.log("✅ PostgreSQL Connected (Ready for Cloud)!");
   }
@@ -28,18 +28,23 @@ pool.connect((err) => {
 
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1]; 
+  const token = authHeader && authHeader.split(" ")[1];
 
-  if (!token) return res.status(401).json({ error: "Need token!" });
+  if (!token) return res.status(401).json({ error: "Token required!" });
 
   jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ error: "Token invalid/expired" });
+    if (err) return res.status(403).json({ error: "Token invalid or expired" });
     req.user = user;
     next();
   });
 };
 
+// ROUTES
+app.get("/", (req, res) => {
+  res.send("Backend Artzy is Running on Vercel! 🚀");
+});
 
+// 1. REGISTER
 app.post("/api/auth/register", async (req, res) => {
   const { username, email, password } = req.body;
   try {
@@ -54,13 +59,14 @@ app.post("/api/auth/register", async (req, res) => {
       "INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id, username, email",
       [username, email, hashed]
     );
-    res.status(201).json({ message: "Register Succes!", user: result.rows[0] });
+    res.status(201).json({ message: "Register Success!", user: result.rows[0] });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: "Server error" }); 
+    return res.status(500).json({ error: "Server error" });
   }
 });
 
+// 2. LOGIN
 app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body;
   try {
@@ -90,10 +96,11 @@ app.post("/api/auth/login", async (req, res) => {
       },
     });
   } catch (err) {
-    return res.status(500).json({ error: "Server error" }); 
+    return res.status(500).json({ error: "Server error" });
   }
 });
 
+// 3. GET PROFILE
 app.get("/api/auth/me", authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
@@ -102,10 +109,11 @@ app.get("/api/auth/me", authenticateToken, async (req, res) => {
     );
     res.json(result.rows[0]);
   } catch (err) {
-    return res.status(500).json({ error: "Failed to get profile!" }); 
+    return res.status(500).json({ error: "Failed to get profile!" });
   }
 });
 
+// 4. UPDATE PROFILE
 app.put("/api/users/profile", authenticateToken, async (req, res) => {
   const { first_name, last_name, username, email, profile_pic } = req.body;
   try {
@@ -119,10 +127,11 @@ app.put("/api/users/profile", authenticateToken, async (req, res) => {
     res.json({ message: "Profile updated!", user: result.rows[0] });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: "Failed to update profile!" }); 
+    return res.status(500).json({ error: "Failed to update profile!" });
   }
 });
 
+// 5. ADD ARTWORK
 app.post("/api/artworks", authenticateToken, async (req, res) => {
   const { image, title, artist, year, category, description } = req.body;
   try {
@@ -144,10 +153,11 @@ app.post("/api/artworks", authenticateToken, async (req, res) => {
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: "Failed to save artwork!" }); 
+    return res.status(500).json({ error: "Failed to save artwork!" });
   }
 });
 
+// 6. GET ALL ARTWORKS
 app.get("/api/artworks", authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
@@ -156,10 +166,11 @@ app.get("/api/artworks", authenticateToken, async (req, res) => {
     );
     res.json(result.rows);
   } catch (err) {
-    return res.status(500).json({ error: "Failed to get gallery!" }); 
+    return res.status(500).json({ error: "Failed to get gallery!" });
   }
 });
 
+// 7. GET SINGLE ARTWORK
 app.get("/api/artworks/:id", authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
@@ -170,10 +181,11 @@ app.get("/api/artworks/:id", authenticateToken, async (req, res) => {
       return res.status(404).json({ error: "Artwork not found!" });
     res.json(result.rows[0]);
   } catch (err) {
-    return res.status(500).json({ error: "Server error" }); 
+    return res.status(500).json({ error: "Server error" });
   }
 });
 
+// 8. DELETE ARTWORK
 app.delete("/api/artworks/:id", authenticateToken, async (req, res) => {
   try {
     await pool.query("DELETE FROM artworks WHERE id = $1 AND user_id = $2", [
@@ -182,13 +194,14 @@ app.delete("/api/artworks/:id", authenticateToken, async (req, res) => {
     ]);
     res.json({ message: "Artwork deleted!" });
   } catch (err) {
-    return res.status(500).json({ error: "Failed to delete!" }); 
+    return res.status(500).json({ error: "Failed to delete!" });
   }
 });
 
+// 9. UPDATE ARTWORK
 app.put("/api/artworks/:id", authenticateToken, async (req, res) => {
   const { image, title, artist, year, category, description } = req.body;
-  const { id } = req.params; 
+  const { id } = req.params;
 
   try {
     const result = await pool.query(
@@ -224,6 +237,7 @@ app.put("/api/artworks/:id", authenticateToken, async (req, res) => {
   }
 });
 
+// 10. FORGOT PASSWORD
 app.post("/api/auth/forgot-password", async (req, res) => {
   const { email } = req.body;
   try {
@@ -239,7 +253,7 @@ app.post("/api/auth/forgot-password", async (req, res) => {
     });
     const resetLink = `http://localhost:5173/reset-password/${resetToken}`;
 
-    console.log("Reset link (manual copy to browser):", resetLink);
+    console.log("Reset link:", resetLink);
     res.json({
       message: "Reset link has been sent to console (see backend terminal)",
     });
@@ -248,10 +262,8 @@ app.post("/api/auth/forgot-password", async (req, res) => {
   }
 });
 
-app.get("/", (req, res) => {
-  res.send("<center><h1>Backend Artzy Running on Render! 🚀</h1></center>");
+app.listen(PORT, () => {
+  console.log(`Backend running on http://localhost:${PORT}`);
 });
 
-app.listen(PORT, () => {
-  console.log(`Backend running on http://localhost:${PORT} yah.`);
-});
+module.exports = app;
