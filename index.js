@@ -1,5 +1,3 @@
-// backend/index.js (Kode Revisi Penuh)
-
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
@@ -10,47 +8,41 @@ const jwt = require("jsonwebtoken");
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
-app.use(cors({ origin: "http://localhost:5173" }));
+app.use(cors()); 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
-
-// DB Connection
 const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false, 
+  },
 });
 
-// Test koneksi
 pool.connect((err) => {
-  if (err) console.error("Failed connect to DB:", err);
-  else console.log("PostgreSQL connected!");
+  if (err) {
+    console.error("Gagal konek ke Database:", err);
+  } else {
+    console.log("✅ PostgreSQL Connected (Ready for Cloud)!");
+  }
 });
 
-// === MIDDLEWARE AUTH ===
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1]; // Bearer TOKEN
+  const token = authHeader && authHeader.split(" ")[1]; 
 
   if (!token) return res.status(401).json({ error: "Need token!" });
 
   jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
     if (err) return res.status(403).json({ error: "Token invalid/expired" });
-    req.user = user; // { id: xx }
+    req.user = user;
     next();
   });
 };
 
-// ================== ROUTES ==================
 
-// 1. REGISTER
 app.post("/api/auth/register", async (req, res) => {
   const { username, email, password } = req.body;
   try {
-    // Cek email udah ada belum
     const check = await pool.query("SELECT * FROM users WHERE email = $1", [
       email,
     ]);
@@ -69,7 +61,6 @@ app.post("/api/auth/register", async (req, res) => {
   }
 });
 
-// 2. LOGIN
 app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body;
   try {
@@ -103,7 +94,6 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
-// 3. GET PROFILE (buat Beranda & Profile page)
 app.get("/api/auth/me", authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
@@ -116,7 +106,6 @@ app.get("/api/auth/me", authenticateToken, async (req, res) => {
   }
 });
 
-// 4. UPDATE PROFILE (EditProfilePage)
 app.put("/api/users/profile", authenticateToken, async (req, res) => {
   const { first_name, last_name, username, email, profile_pic } = req.body;
   try {
@@ -134,7 +123,6 @@ app.put("/api/users/profile", authenticateToken, async (req, res) => {
   }
 });
 
-// 5. ADD ARTWORK
 app.post("/api/artworks", authenticateToken, async (req, res) => {
   const { image, title, artist, year, category, description } = req.body;
   try {
@@ -160,7 +148,6 @@ app.post("/api/artworks", authenticateToken, async (req, res) => {
   }
 });
 
-// 6. GET ALL ARTWORKS USER (Gallery Walls)
 app.get("/api/artworks", authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
@@ -173,7 +160,6 @@ app.get("/api/artworks", authenticateToken, async (req, res) => {
   }
 });
 
-// 7. GET SINGLE ARTWORK (View Detail)
 app.get("/api/artworks/:id", authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
@@ -188,7 +174,6 @@ app.get("/api/artworks/:id", authenticateToken, async (req, res) => {
   }
 });
 
-// 8. DELETE ARTWORK
 app.delete("/api/artworks/:id", authenticateToken, async (req, res) => {
   try {
     await pool.query("DELETE FROM artworks WHERE id = $1 AND user_id = $2", [
@@ -201,7 +186,6 @@ app.delete("/api/artworks/:id", authenticateToken, async (req, res) => {
   }
 });
 
-// 9. UPDATE ARTWORK 
 app.put("/api/artworks/:id", authenticateToken, async (req, res) => {
   const { image, title, artist, year, category, description } = req.body;
   const { id } = req.params; 
@@ -240,7 +224,6 @@ app.put("/api/artworks/:id", authenticateToken, async (req, res) => {
   }
 });
 
-// 10. FORGOT PASSWORD
 app.post("/api/auth/forgot-password", async (req, res) => {
   const { email } = req.body;
   try {
@@ -257,8 +240,6 @@ app.post("/api/auth/forgot-password", async (req, res) => {
     const resetLink = `http://localhost:5173/reset-password/${resetToken}`;
 
     console.log("Reset link (manual copy to browser):", resetLink);
-    // Nanti bisa pake nodemailer buat kirim email beneran
-
     res.json({
       message: "Reset link has been sent to console (see backend terminal)",
     });
@@ -268,7 +249,7 @@ app.post("/api/auth/forgot-password", async (req, res) => {
 });
 
 app.get("/", (req, res) => {
-  res.send("<center><h1>PostgreSQL Connected!</h1></center>");
+  res.send("<center><h1>Backend Artzy Running on Render! 🚀</h1></center>");
 });
 
 app.listen(PORT, () => {
